@@ -189,7 +189,7 @@ app.post('/sign-in', (req, res) => {
 
           const user = {
             user: results[0].user,
-            value : results[0].value
+            value: results[0].value.toString(),
           };
 
 
@@ -198,8 +198,7 @@ app.post('/sign-in', (req, res) => {
 
           res.status(201).json({
             success: true,
-            msg: "success",
-            token: acessToken,
+            msg: acessToken,
           });
 
         }else{
