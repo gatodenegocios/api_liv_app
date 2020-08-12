@@ -178,7 +178,7 @@ app.post('/sign-in', (req, res) => {
         console.log("Usuario não existe");
         return res.status(406).json({
           success: false,
-          msg: "Esse usuario já existe!"
+          msg: "Esse usuario não existe!"
         });
       }else{
 
@@ -200,6 +200,120 @@ app.post('/sign-in', (req, res) => {
             success: true,
             msg: acessToken,
           });
+
+        }else{
+          console.log("Senha errada");
+          return res.status(406).json({
+            success: false,
+            msg: "Senha errada!"
+          });
+        }
+      }
+    }
+
+  );
+
+
+});
+
+app.post('/transfer', (req, res) => {
+  let passwordData = saltHashPassword(req.body.password);
+
+  let _userFrom = req.body.userFrom;
+  let _userTo = req.body.userTo;
+
+  let _value = req.body.value;
+  let _pass = req.body.password;
+
+  console.log("recebi transfer de " + _userFrom+" pra " + _userTo+" de "+ +"  _value");
+  connection.query("SELECT * FROM People WHERE People.user = ? LIMIT 1;",[
+    _userFrom
+    ],
+    function(error, resultsUserFrom){
+      if(error) { 
+        console.log(error);
+        return res.status(500).json({
+          success: false,
+          msg: "Erro de conexão com o banco."
+        });
+      }
+
+      if(resultsUserFrom.length <= 0){
+        console.log("Usuario não existe");
+        return res.status(406).json({
+          success: false,
+          msg: "Esse usuario não existe!"
+        });
+      }else{
+        console.log("User from existe");
+        let _salt  = resultsUserFrom[0].salt;
+        let _hashUser = (sha512(_pass,_salt)).passwordHash;
+
+        if(_hashUser === resultsUserFrom[0].hash){ console.log("logado");
+
+        console.log("a senha bate");
+          if(_value > resultsUserFrom[0].value){
+            console.log("saldo não");
+            return res.status(406).json({
+              success: false,
+              msg: "Saldo insufuciente!"
+            });
+          }else{
+           
+            connection.query("SELECT * FROM People WHERE People.user = ? LIMIT 1;",[
+              _userTo
+              ],
+              function(error, resultsUserTo){
+                if(error) { 
+                  console.log(error);
+                  return res.status(500).json({
+                    success: false,
+                    msg: "Erro de conexão com o banco."
+                  });
+                }
+
+                if(resultsUserTo.length <= 0){
+                  console.log("usuario to n existe");
+                  return res.status(406).json({
+                    success: false,
+                    msg: "Usuario remetente não existe!"
+                  });
+                }else{
+                  console.log("usuario to existe");
+
+                  let userFromValue = resultsUserFrom[0].value -_value;
+                  let userToValue = resultsUserTo[0].value +_value;
+
+                  connection.query("UPDATE People SET People.value = ? WHERE People.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
+                     userFromValue, _userFrom
+                  ],
+                    function(error, resultsUserTo){
+                      if(error) { 
+                        console.log(error);
+                        return res.status(500).json({
+                          success: false,
+                          msg: "Erro de conexão com o banco."
+                        });
+                      }
+                      console.log("Transferencia realizada com sucesso!");
+                      return res.status(500).json({
+                          success: true,
+                          msg: "Transferencia realizada com sucesso!"
+                        });
+
+                    });
+
+                }
+              }
+            );
+
+          }
+            
+          
+
+          //logado
+
+
 
         }else{
           console.log("Senha errada");
