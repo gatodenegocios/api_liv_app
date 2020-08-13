@@ -37,7 +37,7 @@ app.set('view engine','ejs');
 
   USE liv_app;
 
-  CREATE TABLE People(
+  CREATE TABLE people(
     idPeople VARCHAR(36) NOT NULL PRIMARY KEY,
     user VARCHAR(64) NOT NULL UNIQUE,
     hash VARCHAR(128) NOT NULL UNIQUE,
@@ -45,23 +45,17 @@ app.set('view engine','ejs');
     value DOUBLE NOT NULL DEFAULT 1000
   ) ENGINE=InnoDB CHARACTER SET utf8;
 
-  CREATE TABLE Transfer(
+  CREATE TABLE transfer(
     idTransfer VARCHAR(36) NOT NULL PRIMARY KEY,
     idPeopleFrom VARCHAR(36) NOT NULL,
     idPeopleTo VARCHAR(36) NOT NULL,
     value DOUBLE NOT NULL,
+    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (idPeopleFrom) REFERENCES People (idPeople),
-    FOREIGN KEY (idPeopleTo) REFERENCES People (idPeople)
+    FOREIGN KEY (idPeopleFrom) REFERENCES people (idPeople),
+    FOREIGN KEY (idPeopleTo) REFERENCES people (idPeople)
   ) ENGINE=InnoDB CHARACTER SET utf8;
 
-
-  CREATE PROCEDURE transation (userFrom VARCHAR(64),userTo VARCHAR(64), value DOUBLE)
-     BEGIN
-      START TRANSACTION;
-        DOUBLE userFromValue = Select People.value FROM People WHERE People.user = userTo;
-      COMMIT;
-     END
 */
 
 
@@ -119,7 +113,7 @@ app.post('/sign-up', (req, res) => {
   let _hash = passwordData.passwordHash;
   let _salt = passwordData.salt;
 
-  connection.query("SELECT 1 FROM People WHERE People.user = ? LIMIT 1;",[
+  connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],  function(error, results){
         if(error) {
@@ -136,7 +130,7 @@ app.post('/sign-up', (req, res) => {
           });
         }else{console.log("ARIU");
         
-          connection.query("INSERT INTO People VALUES(?,?,?,?,DEFAULT);",[
+          connection.query("INSERT INTO people VALUES(?,?,?,?,DEFAULT);",[
                 _id,
                 _user,
                 _hash,
@@ -169,7 +163,7 @@ app.post('/sign-in', (req, res) => {
   let _password = req.body.password;
 
 
-  connection.query("SELECT * FROM People WHERE People.user = ? LIMIT 1;",[
+  connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],
     function(error, results){
@@ -232,8 +226,7 @@ app.post('/transfer', (req, res) => {
   let _value = req.body.value;
   let _pass = req.body.password;
 
-  console.log("recebi transfer de " + _userFrom+" pra " + _userTo+" de "+ +"  _value");
-  connection.query("SELECT * FROM People WHERE People.user = ? LIMIT 1;",[
+  connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
     _userFrom
     ],
     function(error, resultsUserFrom){
@@ -267,9 +260,23 @@ app.post('/transfer', (req, res) => {
             });
           }else{
 
+            if(_value<= 0){
+              return res.status(406).json({
+                success: false,
+                msg: "O valor de transferencia é invalido!"
+              });
+            }
+
+            if(_userFrom == _userTo){
+              return res.status(406).json({
+                success: false,
+                msg: "O remetente e o destinatário não podem ser a mesma pesssoa!"
+              });
+            }
+
             let peopleFromId = resultsUserFrom[0].idPeople;
            
-            connection.query("SELECT * FROM People WHERE People.user = ? LIMIT 1;",[
+            connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
               _userTo
               ],
               function(error, resultsUserTo){
@@ -313,7 +320,7 @@ app.post('/transfer', (req, res) => {
                         });
                     }
 
-                    connection.query("UPDATE People SET People.value = ? WHERE People.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
+                    connection.query("UPDATE people SET people.value = ? WHERE people.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
                      userFromValue, _userFrom
                     ],
                       function(error, resultsUserTo){
@@ -326,7 +333,7 @@ app.post('/transfer', (req, res) => {
                           });
                         }
 
-                        connection.query("UPDATE People SET People.value = ? WHERE People.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
+                        connection.query("UPDATE people SET people.value = ? WHERE people.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
                          userToValue, _userTo
                         ],
                           function(error, resultsUserTo){
@@ -338,7 +345,7 @@ app.post('/transfer', (req, res) => {
                                 });
                               });
                             }
-                            connection.query("INSERT INTO Transfer VALUES(?,?,?,?);",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
+                            connection.query("INSERT INTO transfer VALUES(?,?,?,?,DEFAULT);",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
                              uuidv4(),peopleFromId,peopleToId,_value
                             ],
                               function(error, resultsUserTo){
@@ -413,7 +420,7 @@ app.post('/updateValue', verifyJWT, (req, res, next) => {
 
     let _user = req.body.user;
 
-    connection.query("SELECT * FROM People WHERE People.user = ? LIMIT 1;",[
+    connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
       _user
     ],
       function(error, result){
@@ -443,6 +450,87 @@ app.post('/updateValue', verifyJWT, (req, res, next) => {
         }
       }
     );
+    
+  });
+
+app.post('/updateTransactions', verifyJWT, (req, res, next) => {
+
+    let _user = req.body.user;
+
+
+    connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
+    _user
+    ],
+    function(error, results){
+      if(error) { 
+        console.log(error);
+        return res.status(500).json({
+          success: false,
+          msg: "Erro de conexão com o banco."
+        });
+      }
+
+      if(results.length <= 0){
+        console.log("Usuario não existe");
+        return res.status(406).json({
+          success: false,
+          msg: "Esse usuario não existe!"
+        });
+      }else{
+        connection.query("select t.value, p1.user AS userFrom,  p2.user AS userTo, t.date  from transfer t LEFT JOIN people p1 ON t.idPeopleFrom = p1.idPeople LEFT JOIN people p2 ON t.idPeopleTo = p2.idPeople WHERE p1.user = ? OR p2.user = ? ORDER BY(t.date) DESC;",[
+          _user,_user
+        ],
+          function(error, result){
+            if(error) { 
+              console.log(error);
+              return res.status(500).json({
+                success: false,
+                msg: "Erro de conexão com o banco."
+              });
+            }
+
+            if(result.length <= 0){
+              console.log("usuario to n existe");
+              return res.status(406).json({
+                success: false,
+                msg: "Usuario remetente não existe!"
+              });
+            }else{
+              let transactions= [];
+
+              for(var i = 0 ; i < result.length; i++){
+                let _input = result[i].userTo == _user;
+
+                let _otherUser = _input? result[i].userFrom : result[i].userTo;
+
+                let _type = _input? "Entrada" : "Saida";
+
+                transactions.push(
+                  {
+                    user:_otherUser,
+                    value: result[i].value,
+                    date: result[i].date,
+                    type: _type
+                  }
+                );
+              }
+
+              return res.status(200).json({
+                success: true,
+                msg: transactions
+              });
+            }
+          }
+        );
+
+      }
+    }
+
+  );
+
+
+
+    
     
   });
 
