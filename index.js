@@ -55,6 +55,13 @@ app.set('view engine','ejs');
     FOREIGN KEY (idPeopleTo) REFERENCES People (idPeople)
   ) ENGINE=InnoDB CHARACTER SET utf8;
 
+
+  CREATE PROCEDURE transation (userFrom VARCHAR(64),userTo VARCHAR(64), value DOUBLE)
+     BEGIN
+      START TRANSACTION;
+        DOUBLE userFromValue = Select People.value FROM People WHERE People.user = userTo;
+      COMMIT;
+     END
 */
 
 
@@ -259,6 +266,8 @@ app.post('/transfer', (req, res) => {
               msg: "Saldo insufuciente!"
             });
           }else{
+
+            let peopleFromId = resultsUserFrom[0].idPeople;
            
             connection.query("SELECT * FROM People WHERE People.user = ? LIMIT 1;",[
               _userTo
@@ -279,29 +288,100 @@ app.post('/transfer', (req, res) => {
                     msg: "Usuario remetente não existe!"
                   });
                 }else{
-                  console.log("usuario to existe");
+                  
+                  let peopleToId = resultsUserTo[0].idPeople;
 
-                  let userFromValue = resultsUserFrom[0].value -_value;
-                  let userToValue = resultsUserTo[0].value +_value;
+                  console.log(resultsUserFrom[0].value);
+                  console.log(resultsUserTo[0].value);
 
-                  connection.query("UPDATE People SET People.value = ? WHERE People.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
+                  console.log(resultsUserFrom[0].value - _value);
+                  console.log(resultsUserTo[0].value + _value);                  
+
+                  let userFromValue = resultsUserFrom[0].value -_value; 
+                  let userToValue = parseFloat(resultsUserTo[0].value) + parseFloat(_value); 
+
+                  console.log(userFromValue);
+                  console.log(userToValue);          
+
+                  connection.beginTransaction(function(err) {
+                     if (err) {                  //Transaction Error (Rollback and release connection)
+                        connection.rollback(function() {console.log("Deu ruim inicio");
+                          return res.status(406).json({
+                            success: false,
+                            msg: "Houve um problema de conexão."
+                          });
+                        });
+                    }
+
+                    connection.query("UPDATE People SET People.value = ? WHERE People.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
                      userFromValue, _userFrom
-                  ],
-                    function(error, resultsUserTo){
-                      if(error) { 
-                        console.log(error);
-                        return res.status(500).json({
-                          success: false,
-                          msg: "Erro de conexão com o banco."
-                        });
-                      }
-                      console.log("Transferencia realizada com sucesso!");
-                      return res.status(500).json({
-                          success: true,
-                          msg: "Transferencia realizada com sucesso!"
+                    ],
+                      function(error, resultsUserTo){
+                        if(error){//Transaction Error (Rollback and release connection)
+                        connection.rollback(function() { console.log("Deu ruim meio");
+                          return res.status(406).json({
+                            success: false,
+                            msg: "Houve um problema de conexão."
+                            });
+                          });
+                        }
+
+                        connection.query("UPDATE People SET People.value = ? WHERE People.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
+                         userToValue, _userTo
+                        ],
+                          function(error, resultsUserTo){
+                            if(error){//Transaction Error (Rollback and release connection)
+                            connection.rollback(function() { console.log(error);
+                              return res.status(406).json({
+                                success: false,
+                                msg: "Houve um problema de conexão."
+                                });
+                              });
+                            }
+                            connection.query("INSERT INTO Transfer VALUES(?,?,?,?);",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
+                             uuidv4(),peopleFromId,peopleToId,_value
+                            ],
+                              function(error, resultsUserTo){
+                                if(error){//Transaction Error (Rollback and release connection)
+                                connection.rollback(function() { console.log(error);
+                                  return res.status(406).json({
+                                    success: false,
+                                    msg: "Houve um problema de conexão."
+                                    });
+                                  });
+                                }
+
+                                connection.commit(function(err) {
+                                  if (err) {
+                                      connection.rollback(function() {
+                                          //connection.release();
+                                          //Failure
+                                      });
+                                  } else { console.log("Deu td certo");
+                                    return res.status(201).json({
+                                      success: true,
+                                      msg: "Transferencia realizada com sucesso!"
+                                    });
+                                      //Success
+                                  }
+                                });
+                            });
+
+                            
+
+                          });
+
+                        
+
+
+
+
                         });
 
-                    });
+
+                  });
+
+                  
 
                 }
               }
@@ -327,15 +407,53 @@ app.post('/transfer', (req, res) => {
 
   );
 
-
 });
 
+app.post('/updateValue', verifyJWT, (req, res, next) => {
+
+    let _user = req.body.user;
+
+    connection.query("SELECT * FROM People WHERE People.user = ? LIMIT 1;",[
+      _user
+    ],
+      function(error, result){
+        if(error) { 
+          console.log(error);
+          return res.status(500).json({
+            success: false,
+            msg: "Erro de conexão com o banco."
+          });
+        }
+
+        if(result.length <= 0){
+          console.log("usuario to n existe");
+          return res.status(406).json({
+            success: false,
+            msg: "Usuario remetente não existe!"
+          });
+        }else{
+          let _value = result[0].value;
+          console.log("vo envia "+ _value);
+          return res.status(200).json({
+            success: true,
+            msg:{
+              value: _value.toString(),
+            }
+          });
+        }
+      }
+    );
+    
+  });
 
 
-function authenticateToken(req,res,next){
+
+
+function authenticateToken(req,res,next){ console.log(req.headers);
   const _authHeader = req.headers['authorization'];
   const _token = _authHeader && _authHeader.split(' ')[1];
-
+  console.log(_token);
+  console.log(_authHeader && _authHeader.split('.')[1]);
   if (_token == null){ 
     console.log("erro 401"); 
   return res.sendStatus(401);
@@ -345,6 +463,19 @@ function authenticateToken(req,res,next){
     if (err){ console.log("erro 403"); return res.sendStatus(403);}
 
     req.user = user;
+    next();
+  });
+}
+
+function verifyJWT(req, res, next){
+  var token = req.headers['authorization'];
+  if (!token) return res.status(401).send({ auth: false, message: 'No token provided.' });
+  
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function(err, decoded) {
+    if (err) return res.status(500).send({ auth: false, message: 'Failed to authenticate token.' });
+    
+    // se tudo estiver ok, salva no request para uso posterior
+    req.userId = decoded.id;
     next();
   });
 }
