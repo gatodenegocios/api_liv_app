@@ -104,6 +104,14 @@ app.get('/', (req, res) => {
   res.send('Funcionando!');
 });
 
+app.post('/test-conection', (req, res) => {
+  
+  return res.status(200).json({
+    success: true,
+    msg: "Conexão bem sucedida."
+  });
+});
+
 app.post('/sign-up', (req, res) => {
 
   let passwordData = saltHashPassword(req.body.password);
