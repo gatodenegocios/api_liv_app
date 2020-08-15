@@ -65,33 +65,35 @@ app.set('view engine','ejs');
  * @function
  * @param {number} length - Length of the random string.
  */
-let genRandomString = function(length){
-    return crypto.randomBytes(Math.ceil(length/2))
-            .toString('hex') /** convert to hexadecimal format */
-            .slice(0,length);   /** return required number of characters */
-};
+  let genRandomString = function(length){
+      return crypto.randomBytes(Math.ceil(length/2))
+              .toString('hex') /** convert to hexadecimal format */
+              .slice(0,length);   /** return required number of characters */
+  };
 
-/**
- * hash password with sha512.
- * @function
- * @param {string} password - List of required fields.
- * @param {string} salt - Data to be validated.
- */
-let sha512 = function(password, salt){
-    var hash = crypto.createHmac('sha512', salt); /** Hashing algorithm sha512 */
-    hash.update(password);
-    var value = hash.digest('hex');
-    return {
-        salt:salt,
-        passwordHash:value
-    };
-};
+  /**
+   * hash password with sha512.
+   * @function
+   * @param {string} password - List of required fields.
+   * @param {string} salt - Data to be validated.
+   */
+  let sha512 = function(password, salt){
+      var hash = crypto.createHmac('sha512', salt); /** Hashing algorithm sha512 */
+      hash.update(password);
+      var value = hash.digest('hex');
+      return {
+          salt:salt,
+          passwordHash:value
+      };
+  };
 
-function saltHashPassword(userpassword) {
-    var salt = genRandomString(16); /** Gives us salt of length 16 */
-    var passwordData = sha512(userpassword, salt);
-    return passwordData;
-}
+  function saltHashPassword(userpassword) {
+      var salt = genRandomString(16); /** Gives us salt of length 16 */
+      var passwordData = sha512(userpassword, salt);
+      return passwordData;
+  }
+
+/* end password region */
 
 
 
@@ -104,6 +106,8 @@ app.get('/', (req, res) => {
   res.send('Funcionando!');
 });
 
+
+/*rota para testar conexão com o servidor*/
 app.post('/test-conection', (req, res) => {
   
   return res.status(200).json({
@@ -112,6 +116,8 @@ app.post('/test-conection', (req, res) => {
   });
 });
 
+
+/*rota login*/
 app.post('/sign-up', (req, res) => {
 
   let passwordData = saltHashPassword(req.body.password);
@@ -121,6 +127,8 @@ app.post('/sign-up', (req, res) => {
   let _hash = passwordData.passwordHash;
   let _salt = passwordData.salt;
 
+
+  /*verifica se já existe alguem com o mesmo user*/
   connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],  function(error, results){
@@ -136,8 +144,8 @@ app.post('/sign-up', (req, res) => {
             success: false,
             msg: "Esse usuario já existe!"
           });
-        }else{console.log("ARIU");
-        
+        }else{
+          /*insere user no banco*/
           connection.query("INSERT INTO people VALUES(?,?,?,?,DEFAULT);",[
                 _id,
                 _user,
@@ -145,14 +153,13 @@ app.post('/sign-up', (req, res) => {
                 _salt
               ],
               function(error, results){ 
-                if(error) {console.log(_hash.length);console.log(_salt.length);
+                if(error) {
                   console.log(error);
                   return res.status(500).json({
                     success: false,
                     msg: "Erro de conexão com o banco."
                   });
                 }else{
-                  console.log("Usuario criado!");
                   return res.status(201).json( {
                     success: false,
                     msg: "Usuario criado!"
@@ -161,22 +168,23 @@ app.post('/sign-up', (req, res) => {
           });
       }
   });
- // res.send('success');
+ 
 });
 
+/* rota para logar usuario*/
 app.post('/sign-in', (req, res) => {
   let passwordData = saltHashPassword(req.body.password);
 
   let _user = req.body.user;
   let _password = req.body.password;
 
-
+  /* verifica se o user existe */
   connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],
     function(error, results){
       if(error) { 
-        console.log(error);
+        
         return res.status(500).json({
           success: false,
           msg: "Erro de conexão com o banco."
@@ -184,13 +192,14 @@ app.post('/sign-in', (req, res) => {
       }
 
       if(results.length <= 0){
-        console.log("Usuario não existe");
+        
         return res.status(406).json({
           success: false,
           msg: "Esse usuario não existe!"
         });
       }else{
 
+        /*hasheia a senha recebida com o salt do banco e compara os resultados */
         let _salt  = results[0].salt;
         let _hashUser = (sha512(_password,_salt)).passwordHash;
 
@@ -201,7 +210,7 @@ app.post('/sign-in', (req, res) => {
             value: results[0].value.toString(),
           };
 
-
+          /*gera uma chave jwt*/
           const acessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET);
 
 
@@ -211,7 +220,6 @@ app.post('/sign-in', (req, res) => {
           });
 
         }else{
-          console.log("Senha errada");
           return res.status(406).json({
             success: false,
             msg: "Senha errada!"
@@ -225,6 +233,7 @@ app.post('/sign-in', (req, res) => {
 
 });
 
+/*rota para realizar uma transferencia*/
 app.post('/transfer', (req, res) => {
   let passwordData = saltHashPassword(req.body.password);
 
@@ -234,6 +243,7 @@ app.post('/transfer', (req, res) => {
   let _value = req.body.value;
   let _pass = req.body.password;
 
+  /*verifica se o usuario que quer transferir existe*/
   connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
     _userFrom
     ],
@@ -247,27 +257,27 @@ app.post('/transfer', (req, res) => {
       }
 
       if(resultsUserFrom.length <= 0){
-        console.log("Usuario não existe");
+        
         return res.status(406).json({
           success: false,
           msg: "Esse usuario não existe!"
         });
       }else{
-        console.log("User from existe");
+        
+        /*verifica se a senha enviada bate com a senha do usuario*/
+
         let _salt  = resultsUserFrom[0].salt;
         let _hashUser = (sha512(_pass,_salt)).passwordHash;
 
-        if(_hashUser === resultsUserFrom[0].hash){ console.log("logado");
-
-        console.log("a senha bate");
+        if(_hashUser === resultsUserFrom[0].hash){
+          /*verifica se o user tem dinhero para fazer a transferencia*/
           if(_value > resultsUserFrom[0].value){
-            console.log("saldo não");
             return res.status(406).json({
               success: false,
               msg: "Saldo insufuciente!"
             });
           }else{
-
+            /*verifica se o valor da transferencia é valido*/
             if(_value<= 0){
               return res.status(406).json({
                 success: false,
@@ -275,6 +285,7 @@ app.post('/transfer', (req, res) => {
               });
             }
 
+            /*verifica se o ele não estaa transferindo para si mesmo*/
             if(_userFrom == _userTo){
               return res.status(406).json({
                 success: false,
@@ -282,8 +293,8 @@ app.post('/transfer', (req, res) => {
               });
             }
 
-            let peopleFromId = resultsUserFrom[0].idPeople;
-           
+            /*verifica se o user que irá receber existe*/
+            let peopleFromId = resultsUserFrom[0].idPeople;           
             connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
               _userTo
               ],
@@ -297,27 +308,20 @@ app.post('/transfer', (req, res) => {
                 }
 
                 if(resultsUserTo.length <= 0){
-                  console.log("usuario to n existe");
                   return res.status(406).json({
                     success: false,
                     msg: "Usuario remetente não existe!"
                   });
                 }else{
                   
-                  let peopleToId = resultsUserTo[0].idPeople;
+                  /*separa as informações que serão usadas na transferencia*/
 
-                  console.log(resultsUserFrom[0].value);
-                  console.log(resultsUserTo[0].value);
-
-                  console.log(resultsUserFrom[0].value - _value);
-                  console.log(resultsUserTo[0].value + _value);                  
+                  let peopleToId = resultsUserTo[0].idPeople;          
 
                   let userFromValue = resultsUserFrom[0].value -_value; 
                   let userToValue = parseFloat(resultsUserTo[0].value) + parseFloat(_value); 
-
-                  console.log(userFromValue);
-                  console.log(userToValue);          
-
+       
+                  /*inicia o processo de transação*/
                   connection.beginTransaction(function(err) {
                      if (err) {                  //Transaction Error (Rollback and release connection)
                         connection.rollback(function() {console.log("Deu ruim inicio");
@@ -331,6 +335,7 @@ app.post('/transfer', (req, res) => {
                     connection.query("UPDATE people SET people.value = ? WHERE people.user = ?;",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
                      userFromValue, _userFrom
                     ],
+
                       function(error, resultsUserTo){
                         if(error){//Transaction Error (Rollback and release connection)
                         connection.rollback(function() { console.log("Deu ruim meio");
@@ -353,6 +358,7 @@ app.post('/transfer', (req, res) => {
                                 });
                               });
                             }
+
                             connection.query("INSERT INTO transfer VALUES(?,?,?,?,DEFAULT);",[ //UPDATE People SET People.value = ? WHERE People.user = ?;
                              uuidv4(),peopleFromId,peopleToId,_value
                             ],
@@ -369,10 +375,8 @@ app.post('/transfer', (req, res) => {
                                 connection.commit(function(err) {
                                   if (err) {
                                       connection.rollback(function() {
-                                          //connection.release();
-                                          //Failure
                                       });
-                                  } else { console.log("Deu td certo");
+                                  } else {
                                     return res.status(201).json({
                                       success: true,
                                       msg: "Transferencia realizada com sucesso!"
@@ -381,34 +385,14 @@ app.post('/transfer', (req, res) => {
                                   }
                                 });
                             });
-
-                            
-
-                          });
-
-                        
-
-
-
-
+                          });                        
                         });
-
-
-                  });
-
-                  
-
+                    });
                 }
               }
             );
 
           }
-            
-          
-
-          //logado
-
-
 
         }else{
           console.log("Senha errada");
@@ -424,6 +408,7 @@ app.post('/transfer', (req, res) => {
 
 });
 
+/*rota para pegar o saldo do user*/
 app.post('/updateValue', verifyJWT, (req, res, next) => {
 
     let _user = req.body.user;
@@ -448,7 +433,6 @@ app.post('/updateValue', verifyJWT, (req, res, next) => {
           });
         }else{
           let _value = result[0].value;
-          console.log("vo envia "+ _value);
           return res.status(200).json({
             success: true,
             msg:{
@@ -461,6 +445,7 @@ app.post('/updateValue', verifyJWT, (req, res, next) => {
     
   });
 
+/*rota para pegar o histórico de transações do user*/
 app.post('/updateTransactions', verifyJWT, (req, res, next) => {
 
     let _user = req.body.user;
@@ -479,13 +464,14 @@ app.post('/updateTransactions', verifyJWT, (req, res, next) => {
       }
 
       if(results.length <= 0){
-        console.log("Usuario não existe");
+        
         return res.status(406).json({
           success: false,
           msg: "Esse usuario não existe!"
         });
       }else{
-        connection.query("select t.value, p1.user AS userFrom,  p2.user AS userTo, t.date  from transfer t LEFT JOIN people p1 ON t.idPeopleFrom = p1.idPeople LEFT JOIN people p2 ON t.idPeopleTo = p2.idPeople WHERE p1.user = ? OR p2.user = ? ORDER BY(t.date) DESC;",[
+
+        connection.query("SELECT t.value, p1.user AS userFrom,  p2.user AS userTo, t.date  FROM transfer t LEFT JOIN people p1 ON t.idPeopleFrom = p1.idPeople LEFT JOIN people p2 ON t.idPeopleTo = p2.idPeople WHERE p1.user = ? OR p2.user = ? ORDER BY(t.date) DESC;",[
           _user,_user
         ],
           function(error, result){
@@ -498,10 +484,9 @@ app.post('/updateTransactions', verifyJWT, (req, res, next) => {
             }
 
             if(result.length <= 0){
-              console.log("usuario to n existe");
               return res.status(406).json({
                 success: false,
-                msg: "Usuario remetente não existe!"
+                msg: "Sem transações!"
               });
             }else{
               let transactions= [];
@@ -545,24 +530,7 @@ app.post('/updateTransactions', verifyJWT, (req, res, next) => {
 
 
 
-function authenticateToken(req,res,next){ console.log(req.headers);
-  const _authHeader = req.headers['authorization'];
-  const _token = _authHeader && _authHeader.split(' ')[1];
-  console.log(_token);
-  console.log(_authHeader && _authHeader.split('.')[1]);
-  if (_token == null){ 
-    console.log("erro 401"); 
-  return res.sendStatus(401);
-}
-
-  jwt.verify(_token,process.env.ACCESS_TOKEN_SECRET, (err,user) => {
-    if (err){ console.log("erro 403"); return res.sendStatus(403);}
-
-    req.user = user;
-    next();
-  });
-}
-
+/*verifica jwt*/
 function verifyJWT(req, res, next){
   var token = req.headers['authorization'];
   if (!token) return res.status(401).send({ auth: false, message: 'No token provided.' });
