@@ -117,7 +117,7 @@ app.post('/test-conection', (req, res) => {
 });
 
 
-/*rota login*/
+/*rota registro*/
 app.post('/sign-up', (req, res) => {
 
   let passwordData = saltHashPassword(req.body.password);
@@ -161,7 +161,7 @@ app.post('/sign-up', (req, res) => {
                   });
                 }else{
                   return res.status(201).json( {
-                    success: false,
+                    success: true,
                     msg: "Usuario criado!"
                   });
                 }
@@ -173,13 +173,12 @@ app.post('/sign-up', (req, res) => {
 
 /* rota para logar usuario*/
 app.post('/sign-in', (req, res) => {
-  let passwordData = saltHashPassword(req.body.password);
 
   let _user = req.body.user;
   let _password = req.body.password;
 
   /* verifica se o user existe */
-  connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
+  connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],
     function(error, results){
@@ -235,7 +234,6 @@ app.post('/sign-in', (req, res) => {
 
 /*rota para realizar uma transferencia*/
 app.post('/transfer', (req, res) => {
-  let passwordData = saltHashPassword(req.body.password);
 
   let _userFrom = req.body.userFrom;
   let _userTo = req.body.userTo;
@@ -244,7 +242,7 @@ app.post('/transfer', (req, res) => {
   let _pass = req.body.password;
 
   /*verifica se o usuario que quer transferir existe*/
-  connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
+  connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
     _userFrom
     ],
     function(error, resultsUserFrom){
@@ -285,7 +283,7 @@ app.post('/transfer', (req, res) => {
               });
             }
 
-            /*verifica se o ele não estaa transferindo para si mesmo*/
+            /*verifica se o ele não esta transferindo para si mesmo*/
             if(_userFrom == _userTo){
               return res.status(406).json({
                 success: false,
@@ -295,7 +293,7 @@ app.post('/transfer', (req, res) => {
 
             /*verifica se o user que irá receber existe*/
             let peopleFromId = resultsUserFrom[0].idPeople;           
-            connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
+            connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
               _userTo
               ],
               function(error, resultsUserTo){
@@ -324,7 +322,7 @@ app.post('/transfer', (req, res) => {
                   /*inicia o processo de transação*/
                   connection.beginTransaction(function(err) {
                      if (err) {                  //Transaction Error (Rollback and release connection)
-                        connection.rollback(function() {console.log("Deu ruim inicio");
+                        connection.rollback(function() {
                           return res.status(406).json({
                             success: false,
                             msg: "Houve um problema de conexão."
@@ -338,7 +336,7 @@ app.post('/transfer', (req, res) => {
 
                       function(error, resultsUserTo){
                         if(error){//Transaction Error (Rollback and release connection)
-                        connection.rollback(function() { console.log("Deu ruim meio");
+                          connection.rollback(function() { 
                           return res.status(406).json({
                             success: false,
                             msg: "Houve um problema de conexão."
@@ -374,7 +372,11 @@ app.post('/transfer', (req, res) => {
 
                                 connection.commit(function(err) {
                                   if (err) {
-                                      connection.rollback(function() {
+                                      connection.rollback(function() { console.log(error);
+                                        return res.status(406).json({
+                                        success: false,
+                                        msg: "Houve um problema de conexão."
+                                        });
                                       });
                                   } else {
                                     return res.status(201).json({
@@ -413,7 +415,7 @@ app.post('/updateValue', verifyJWT, (req, res, next) => {
 
     let _user = req.body.user;
 
-    connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
+    connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
       _user
     ],
       function(error, result){
@@ -451,7 +453,7 @@ app.post('/updateTransactions', verifyJWT, (req, res, next) => {
     let _user = req.body.user;
 
 
-    connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
+    connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],
     function(error, results){
