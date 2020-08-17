@@ -272,7 +272,7 @@ app.post('/transfer', (req, res) => {
           if(_value > resultsUserFrom[0].value){
             return res.status(406).json({
               success: false,
-              msg: "Saldo insufuciente!"
+              msg: "Saldo insuficiente!"
             });
           }else{
             /*verifica se o valor da transferencia é valido*/
