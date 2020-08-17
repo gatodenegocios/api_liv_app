@@ -129,7 +129,7 @@ app.post('/sign-up', (req, res) => {
 
 
   /*verifica se já existe alguem com o mesmo user*/
-  connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
+  connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],  function(error, results){
         if(error) {
@@ -178,7 +178,7 @@ app.post('/sign-in', (req, res) => {
   let _password = req.body.password;
 
   /* verifica se o user existe */
-  connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
+  connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],
     function(error, results){
@@ -196,7 +196,7 @@ app.post('/sign-in', (req, res) => {
           success: false,
           msg: "Esse usuario não existe!"
         });
-      }else{
+      }else{console.log(_password);console.log(results[0].salt);
 
         /*hasheia a senha recebida com o salt do banco e compara os resultados */
         let _salt  = results[0].salt;
@@ -242,7 +242,7 @@ app.post('/transfer', (req, res) => {
   let _pass = req.body.password;
 
   /*verifica se o usuario que quer transferir existe*/
-  connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
+  connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
     _userFrom
     ],
     function(error, resultsUserFrom){
@@ -293,7 +293,7 @@ app.post('/transfer', (req, res) => {
 
             /*verifica se o user que irá receber existe*/
             let peopleFromId = resultsUserFrom[0].idPeople;           
-            connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
+            connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
               _userTo
               ],
               function(error, resultsUserTo){
@@ -415,7 +415,7 @@ app.post('/updateValue', verifyJWT, (req, res, next) => {
 
     let _user = req.body.user;
 
-    connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
+    connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
       _user
     ],
       function(error, result){
@@ -453,7 +453,7 @@ app.post('/updateTransactions', verifyJWT, (req, res, next) => {
     let _user = req.body.user;
 
 
-    connection.query("SELECT 1 FROM people WHERE people.user = ? LIMIT 1;",[
+    connection.query("SELECT * FROM people WHERE people.user = ? LIMIT 1;",[
     _user
     ],
     function(error, results){
